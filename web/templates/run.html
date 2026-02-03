@@ -23,12 +23,13 @@
 </div>
 
 <div class="card">
-  <h2>Grouped Issues</h2>
+  <h2>Grouped Issues (Errors)</h2>
+  <p class="meta">Errors are CSP violations with <code>disposition=enforce</code>. Warnings (report-only) are shown below.</p>
   <p class="meta">Note: CSP reporting can differ by browser engine. For example, tracking pixel requests may appear as <code>img-src</code> in Firefox but as <code>connect-src</code> in Chromium/WebKit. If you want fixes that work across browsers, allow the origin under every directive reported by any engine (unless you intentionally want it blocked).</p>
   <div class="browser-section highlight-block">
     <h3 class="browser-title">All Browsers (merged)</h3>
-  {{if .Merged}}
-  <table>
+    {{if .MergedErr}}
+    <table>
     <thead>
       <tr>
         <th class="key-header">Directive / Blocked Origin</th>
@@ -39,19 +40,19 @@
       </tr>
     </thead>
     <tbody>
-      {{range .Merged}}
-      <tr>
-        <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
-        <td>{{.Group.Count}}</td>
-        <td>{{joinList .Browsers}}</td>
-        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
-        <td>
-          {{range $page, $vs := .Group.Pages}}
-            <div><code>{{$page}}</code> ({{len $vs}})</div>
-          {{end}}
-        </td>
-      </tr>
-      {{end}}
+        {{range .MergedErr}}
+        <tr>
+          <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
+          <td>{{.Group.Count}}</td>
+          <td>{{joinList .Browsers}}</td>
+          <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
+          <td>
+            {{range $page, $vs := .Group.Pages}}
+              <div><code>{{$page}}</code> ({{len $vs}})</div>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
       </tbody>
     </table>
     {{else}}
@@ -88,6 +89,77 @@
   </table>
   {{else}}
   <p class="meta">No CSP violations found.</p>
+  {{end}}
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Grouped Issues (Warnings)</h2>
+  <p class="meta">Warnings are CSP violations with <code>disposition=report-only</code>. These indicate what would be blocked if enforcement is enabled.</p>
+  <div class="browser-section">
+    <h3 class="browser-title">All Browsers (merged)</h3>
+    {{if .MergedWarn}}
+    <table>
+      <thead>
+        <tr>
+          <th class="key-header">Directive / Blocked Origin</th>
+          <th>Count</th>
+          <th>Browsers</th>
+          <th>Applied Directive</th>
+          <th>Pages</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .MergedWarn}}
+        <tr>
+          <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
+          <td>{{.Group.Count}}</td>
+          <td>{{joinList .Browsers}}</td>
+          <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
+          <td>
+            {{range $page, $vs := .Group.Pages}}
+              <div><code>{{$page}}</code> ({{len $vs}})</div>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="meta">No CSP report-only violations found.</p>
+    {{end}}
+  </div>
+  {{range .Browsers}}
+  <div class="browser-section">
+  <h3 class="browser-title">{{.Name}}</h3>
+  {{if .Warns}}
+  <table>
+    <thead>
+      <tr>
+        <th class="key-header">Directive / Blocked Origin</th>
+        <th>Count</th>
+        <th>Applied Directive</th>
+        <th>Pages</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Warns}}
+      <tr>
+        <td class="key-col">{{.EffectiveDirective}} → {{.BlockedOrigin}}</td>
+        <td>{{.Count}}</td>
+        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .}}</div></td>
+        <td>
+          {{range $page, $vs := .Pages}}
+            <div><code>{{$page}}</code> ({{len $vs}})</div>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="meta">No report-only violations found.</p>
   {{end}}
   </div>
   {{end}}

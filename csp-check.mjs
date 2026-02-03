@@ -131,7 +131,6 @@ function violationKey(v) {
     v.sourceFile,
     v.lineNumber,
     v.columnNumber,
-    v.disposition,
   ].join("|");
 }
 
@@ -185,6 +184,7 @@ async function checkUrl(context, url) {
       const parsed = parseCspConsoleMessage(text);
       if (!parsed) return;
       if (!parsed.blockedURI || !parsed.effectiveDirective) return;
+      const disposition = /report[- ]only/i.test(text) ? "report-only" : "enforce";
       violations.push({
         documentURI: url,
         referrer: null,
@@ -192,7 +192,7 @@ async function checkUrl(context, url) {
         effectiveDirective: parsed.effectiveDirective,
         violatedDirective: null,
         originalPolicy: parsed.originalPolicy,
-        disposition: "enforce",
+        disposition,
         statusCode: null,
         sourceFile: "console",
         lineNumber: null,
@@ -252,7 +252,14 @@ async function checkUrl(context, url) {
 
   const uniq = new Map();
   for (const v of violations.map(normalizeViolation)) {
-    uniq.set(violationKey(v), v);
+    const key = violationKey(v);
+    const existing = uniq.get(key);
+    if (!existing) {
+      uniq.set(key, v);
+      continue;
+    }
+    const merged = mergeViolation(existing, v);
+    uniq.set(key, merged);
   }
 
   return {
@@ -263,6 +270,27 @@ async function checkUrl(context, url) {
     durationMs: Date.now() - start,
     violations: [...uniq.values()],
   };
+}
+
+function normalizeDisposition(d) {
+  const val = String(d || "").toLowerCase();
+  if (val.includes("report")) return "report-only";
+  if (val === "enforce") return "enforce";
+  return "";
+}
+
+function mergeViolation(a, b) {
+  const da = normalizeDisposition(a.disposition);
+  const db = normalizeDisposition(b.disposition);
+  // Prefer explicit enforce, but if one is report-only and the other is unknown,
+  // keep report-only to avoid misclassifying report-only as enforce.
+  if (da === "enforce" || db === "enforce") {
+    return da === "enforce" ? a : b;
+  }
+  if (da === "report-only" || db === "report-only") {
+    return da === "report-only" ? a : b;
+  }
+  return a;
 }
 
 function parseCspConsoleMessage(text) {

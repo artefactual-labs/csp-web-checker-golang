@@ -112,6 +112,7 @@ type BrowserReport struct {
 	Name   string
 	Report Report
 	Groups []GroupedViolation
+	Warns  []GroupedViolation
 }
 
 type ProfileView struct {
@@ -584,7 +585,8 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 			browserReports = append(browserReports, BrowserReport{
 				Name:   name,
 				Report: rep,
-				Groups: groupViolations(rep.Results),
+				Groups: groupViolationsByDisposition(rep.Results, "enforce"),
+				Warns:  groupViolationsByDisposition(rep.Results, "report-only"),
 			})
 		}
 	}
@@ -601,7 +603,8 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 			browserReports = append(browserReports, BrowserReport{
 				Name:   name,
 				Report: rep,
-				Groups: groupViolations(rep.Results),
+				Groups: groupViolationsByDisposition(rep.Results, "enforce"),
+				Warns:  groupViolationsByDisposition(rep.Results, "report-only"),
 			})
 		}
 	}
@@ -611,7 +614,8 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "run.html", map[string]any{
 		"Run":      run,
 		"Browsers": browserReports,
-		"Merged":   groupViolationsMulti(browserReports),
+		"MergedErr":  groupViolationsMultiByDisposition(browserReports, "enforce"),
+		"MergedWarn": groupViolationsMultiByDisposition(browserReports, "report-only"),
 		"Profiles": profiles,
 	})
 }
@@ -989,6 +993,74 @@ func groupViolationsMulti(browsers []BrowserReport) []MergedGroup {
 		out = append(out, MergedGroup{Group: g, Browsers: names})
 	}
 	return out
+}
+
+func groupViolationsByDisposition(results []ReportPageResult, disposition string) []GroupedViolation {
+	filtered := make([]ReportPageResult, 0, len(results))
+	for _, r := range results {
+		nr := r
+		nr.Violations = nil
+		for _, v := range r.Violations {
+			if isDisposition(v.Disposition, disposition) {
+				nr.Violations = append(nr.Violations, v)
+			}
+		}
+		if len(nr.Violations) > 0 {
+			filtered = append(filtered, nr)
+		}
+	}
+	return groupViolations(filtered)
+}
+
+func groupViolationsMultiByDisposition(browsers []BrowserReport, disposition string) []MergedGroup {
+	var all []ReportPageResult
+	groupBrowsers := map[string]map[string]struct{}{}
+	for _, b := range browsers {
+		for _, r := range b.Report.Results {
+			var nr ReportPageResult
+			nr = r
+			nr.Violations = nil
+			for _, v := range r.Violations {
+				if !isDisposition(v.Disposition, disposition) {
+					continue
+				}
+				nr.Violations = append(nr.Violations, v)
+				key := fmt.Sprintf("%s -> %s", v.EffectiveDirective, v.BlockedOrigin)
+				if _, ok := groupBrowsers[key]; !ok {
+					groupBrowsers[key] = map[string]struct{}{}
+				}
+				groupBrowsers[key][b.Name] = struct{}{}
+			}
+			if len(nr.Violations) > 0 {
+				all = append(all, nr)
+			}
+		}
+	}
+	grouped := groupViolations(all)
+	out := make([]MergedGroup, 0, len(grouped))
+	for _, g := range grouped {
+		names := make([]string, 0, len(groupBrowsers[g.Key]))
+		for name := range groupBrowsers[g.Key] {
+			names = append(names, name)
+		}
+		for i := 0; i < len(names); i++ {
+			for j := i + 1; j < len(names); j++ {
+				if names[j] < names[i] {
+					names[i], names[j] = names[j], names[i]
+				}
+			}
+		}
+		out = append(out, MergedGroup{Group: g, Browsers: names})
+	}
+	return out
+}
+
+func isDisposition(actual, want string) bool {
+	a := strings.ToLower(strings.TrimSpace(actual))
+	if want == "report-only" {
+		return strings.Contains(a, "report")
+	}
+	return a == "" || a == "enforce"
 }
 
 func defaultConfig() CSPConfig {
