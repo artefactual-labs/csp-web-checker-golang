@@ -1,0 +1,15 @@
+# Runtime options for csp-web. Edit values and restart the service to apply changes.
+
+# Listener and database
+CSP_WEB_ADDR="127.0.0.1:8080"
+CSP_WEB_DB="/var/lib/csp-web/data.db"
+
+# Node + Playwright
+CSP_NODE_BIN="/usr/bin/node"
+CSP_SCRIPT_PATH="/usr/local/bin/csp-check.mjs"
+
+# Optional Playwright toggles
+# CSP_HEADLESS=1
+# CSP_STEALTH=1
+
+# Optional extra environment variables can be added here.

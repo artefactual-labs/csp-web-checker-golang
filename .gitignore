@@ -3,5 +3,6 @@ data.db
 *.tmp
 node_modules/
 csp-web
+!packaging/default/csp-web
 package.json
 package-lock.json
