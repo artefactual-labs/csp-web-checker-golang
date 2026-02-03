@@ -142,6 +142,7 @@ Make sure the PATH includes the Playwright global bin for `csp-check`:
 
 ```
 PATH=/var/lib/csp-web/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+NODE_PATH=/var/lib/csp-web/.npm-global/lib/node_modules
 ```
 
 Then restart the service:

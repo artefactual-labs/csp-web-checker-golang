@@ -6,7 +6,24 @@
 
 import fs from "fs";
 import path from "path";
-import { chromium, firefox, webkit } from "playwright";
+import { createRequire } from "module";
+
+let chromium;
+let firefox;
+let webkit;
+
+try {
+  const pw = await import("playwright");
+  chromium = pw.chromium;
+  firefox = pw.firefox;
+  webkit = pw.webkit;
+} catch (err) {
+  const require = createRequire(import.meta.url);
+  const pw = require("playwright");
+  chromium = pw.chromium;
+  firefox = pw.firefox;
+  webkit = pw.webkit;
+}
 
 const urlsFile = process.argv[2];
 
