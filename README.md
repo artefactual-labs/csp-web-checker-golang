@@ -64,6 +64,19 @@ curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
+If you prefer a tarball install (no apt), you can use:
+
+```bash
+sudo mkdir -p /opt/node
+cd /tmp
+NODE_VERSION=20.19.2
+curl -fsSL -o node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
+sudo tar -xJf node.tar.xz -C /opt/node --strip-components=1
+sudo ln -sf /opt/node/bin/node /usr/local/bin/node
+sudo ln -sf /opt/node/bin/npm /usr/local/bin/npm
+sudo ln -sf /opt/node/bin/npx /usr/local/bin/npx
+```
+
 ### 3) Install Playwright dependencies
 
 Playwright needs extra system libraries for Chromium. Examples:
@@ -88,6 +101,15 @@ sudo dnf install -y \
   pango cairo libX11 libXext libXrender libXtst libXshmfence libXss ca-certificates
 ```
 
+Ubuntu 20.04 missing libraries (after Chromium/GTK deps):
+
+```bash
+sudo apt-get install -y \
+  libatomic1 libopus0 libwebpdemux2 libharfbuzz-icu0 \
+  libwebpmux3 libenchant-2-2 libsecret-1-0 libhyphen0 \
+  libgbm1 libegl1 libglx0 libevdev2 libgles2 libx264-155 libwoff1
+```
+
 If you plan to use Firefox or WebKit, install dependencies for those browsers too (recommended, as the exact package list changes over time):
 
 ```bash
@@ -100,15 +122,10 @@ sudo npx playwright install-deps webkit
 Playwright downloads browser binaries per user. Install them for `csp-check`:
 
 ```bash
-sudo -u csp-check -H bash -c "npm install -g playwright"
-sudo -u csp-check -H bash -c "npx playwright install chromium"
-```
-
-If you plan to use Firefox or WebKit, install those too:
-
-```bash
-sudo -u csp-check -H bash -c "npx playwright install firefox"
-sudo -u csp-check -H bash -c "npx playwright install webkit"
+sudo mkdir -p /var/lib/csp-web/.npm-global /var/lib/csp-web/.npm-cache
+sudo chown -R csp-check:csp-check /var/lib/csp-web
+sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; npm config set prefix /var/lib/csp-web/.npm-global; npm config set cache /var/lib/csp-web/.npm-cache; /usr/local/bin/npm install -g playwright"
+sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; /var/lib/csp-web/.npm-global/bin/playwright install chromium firefox webkit"
 ```
 
 If `npm` is not found in the service user PATH, ensure Node.js is installed system-wide or update `/etc/default/csp-web` to point to the correct `CSP_NODE_BIN`.
@@ -119,6 +136,12 @@ Edit `/etc/default/csp-web` to set the listener address, DB location, and Node/P
 
 ```bash
 sudo editor /etc/default/csp-web
+```
+
+Make sure the PATH includes the Playwright global bin for `csp-check`:
+
+```
+PATH=/var/lib/csp-web/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 ```
 
 Then restart the service:
@@ -134,14 +157,14 @@ Playwright bundles browser versions and should be kept up to date. When you upda
 For the `csp-check` user:
 
 ```bash
-sudo -u csp-check -H bash -c "npm install -g playwright@latest"
-sudo -u csp-check -H bash -c "npx playwright install"
+sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; /usr/local/bin/npm install -g playwright@latest"
+sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; /var/lib/csp-web/.npm-global/bin/playwright install"
 ```
 
 To update browsers and system dependencies in one step:
 
 ```bash
-sudo -u csp-check -H bash -c "npx playwright install --with-deps"
+sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; /var/lib/csp-web/.npm-global/bin/playwright install --with-deps"
 ```
 
 ## First Run (Quick Example)
@@ -177,7 +200,6 @@ Environment variables:
 - `CSP_WEB_DB` (default `data.db` or `/var/lib/csp-web/data.db` for packages)
 - `CSP_NODE_BIN` (default `node`)
 - `CSP_SCRIPT_PATH` (default `./csp-check.mjs` or `/usr/local/bin/csp-check.mjs` for packages)
-- `CSP_BROWSER` (optional; defaults to `chromium`, can be `firefox` or `webkit` if set via profile)
 
 ## Notes
 
