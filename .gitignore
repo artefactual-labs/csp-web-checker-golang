@@ -1,0 +1,7 @@
+data.db
+*.log
+*.tmp
+node_modules/
+csp-web
+package.json
+package-lock.json

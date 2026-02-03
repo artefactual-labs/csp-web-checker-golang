@@ -1,0 +1,136 @@
+{{template "header"}}
+<div class="card">
+  <h2>Create Profile</h2>
+  <p class="meta">Profiles control timing, concurrency, and headers only. Every run always checks Chromium, Firefox, and WebKit, so no browser selection is needed.</p>
+  <form method="post" action="/profiles">
+    <label for="name">Name</label>
+    <input type="text" name="name" id="name" placeholder="Default" />
+
+    <label for="wait_until">waitUntil</label>
+    <select name="wait_until" id="wait_until">
+      <option value="domcontentloaded" {{if eq .Defaults.WaitUntil "domcontentloaded"}}selected{{end}}>domcontentloaded</option>
+      <option value="load" {{if eq .Defaults.WaitUntil "load"}}selected{{end}}>load</option>
+      <option value="networkidle" {{if eq .Defaults.WaitUntil "networkidle"}}selected{{end}}>networkidle</option>
+    </select>
+    <div class="meta">When Playwright considers navigation complete.</div>
+
+    <label for="nav_timeout_ms">Navigation timeout (ms)</label>
+    <input type="text" name="nav_timeout_ms" id="nav_timeout_ms" value="{{.Defaults.NavTimeoutMs}}" />
+
+    <label for="settle_wait_ms">Settle wait after load (ms)</label>
+    <input type="text" name="settle_wait_ms" id="settle_wait_ms" value="{{.Defaults.SettleWaitMs}}" />
+
+    <label for="concurrency">Concurrency</label>
+    <input type="text" name="concurrency" id="concurrency" value="{{.Defaults.Concurrency}}" />
+
+    <label for="between_url_ms">Delay between URLs (ms)</label>
+    <input type="text" name="between_url_ms" id="between_url_ms" value="{{.Defaults.BetweenURLMs}}" />
+
+    <label for="user_agent">User agent</label>
+    <input type="text" name="user_agent" id="user_agent" value="{{.Defaults.UserAgent}}" />
+
+    <label for="accept_language">Accept-Language</label>
+    <input type="text" name="accept_language" id="accept_language" value="{{.Defaults.AcceptLanguage}}" />
+
+    <button type="submit">Save Profile</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Profiles</h2>
+  <p class="meta">Use profiles to tune timeouts and headers for all browsers at once.</p>
+  {{if .Profiles}}
+  <label for="profile_select">Select profile</label>
+  <select id="profile_select">
+    {{range .Profiles}}
+    <option value="{{.ID}}">{{.Name}}</option>
+    {{end}}
+  </select>
+
+  <div class="browser-section" style="margin-top: 12px;">
+    <h3 class="browser-title">Edit Profile</h3>
+    <form method="post" action="/profiles/update" id="profile_form">
+      <input type="hidden" name="id" id="edit_profile_id" />
+
+      <label for="edit_profile_name">Name</label>
+      <input type="text" name="name" id="edit_profile_name" />
+
+      <label for="edit_wait_until">waitUntil</label>
+      <select name="wait_until" id="edit_wait_until">
+        <option value="domcontentloaded">domcontentloaded</option>
+        <option value="load">load</option>
+        <option value="networkidle">networkidle</option>
+      </select>
+      <div class="meta">When Playwright considers navigation complete.</div>
+
+      <label for="edit_nav_timeout_ms">Navigation timeout (ms)</label>
+      <input type="text" name="nav_timeout_ms" id="edit_nav_timeout_ms" />
+
+      <label for="edit_settle_wait_ms">Settle wait after load (ms)</label>
+      <input type="text" name="settle_wait_ms" id="edit_settle_wait_ms" />
+
+      <label for="edit_concurrency">Concurrency</label>
+      <input type="text" name="concurrency" id="edit_concurrency" />
+
+      <label for="edit_between_url_ms">Delay between URLs (ms)</label>
+      <input type="text" name="between_url_ms" id="edit_between_url_ms" />
+
+      <label for="edit_user_agent">User agent</label>
+      <input type="text" name="user_agent" id="edit_user_agent" />
+
+      <label for="edit_accept_language">Accept-Language</label>
+      <input type="text" name="accept_language" id="edit_accept_language" />
+
+      <button type="submit">Update Profile</button>
+    </form>
+  </div>
+  <script type="application/json" id="profiles-data">{{toJSON .Profiles}}</script>
+  <script>
+    (function () {
+      var dataEl = document.getElementById("profiles-data");
+      if (!dataEl) return;
+      var profiles = [];
+      try { profiles = JSON.parse(dataEl.textContent || "[]"); } catch (e) { return; }
+      if (!profiles.length) return;
+
+      var select = document.getElementById("profile_select");
+      var idEl = document.getElementById("edit_profile_id");
+      var nameEl = document.getElementById("edit_profile_name");
+      var waitEl = document.getElementById("edit_wait_until");
+      var navEl = document.getElementById("edit_nav_timeout_ms");
+      var settleEl = document.getElementById("edit_settle_wait_ms");
+      var concEl = document.getElementById("edit_concurrency");
+      var betweenEl = document.getElementById("edit_between_url_ms");
+      var uaEl = document.getElementById("edit_user_agent");
+      var langEl = document.getElementById("edit_accept_language");
+
+      function applyProfile(p) {
+        idEl.value = p.ID;
+        nameEl.value = p.Name || "";
+        waitEl.value = (p.Config && (p.Config.waitUntil || p.Config.WaitUntil)) || "networkidle";
+        navEl.value = (p.Config && (p.Config.navTimeoutMs || p.Config.NavTimeoutMs)) || 45000;
+        settleEl.value = (p.Config && (p.Config.settleWaitMs || p.Config.SettleWaitMs)) || 3000;
+        concEl.value = (p.Config && (p.Config.concurrency || p.Config.Concurrency)) || 1;
+        betweenEl.value = (p.Config && (p.Config.betweenUrlMs || p.Config.BetweenURLMs)) || 600;
+        uaEl.value = (p.Config && (p.Config.userAgent || p.Config.UserAgent)) || "";
+        langEl.value = (p.Config && (p.Config.acceptLanguage || p.Config.AcceptLanguage)) || "";
+      }
+
+      function findProfile(id) {
+        for (var i = 0; i < profiles.length; i++) {
+          if (String(profiles[i].ID) === String(id)) return profiles[i];
+        }
+        return profiles[0];
+      }
+
+      applyProfile(profiles[0]);
+      select.addEventListener("change", function () {
+        applyProfile(findProfile(select.value));
+      });
+    })();
+  </script>
+  {{else}}
+  <p class="meta">No profiles yet.</p>
+  {{end}}
+</div>
+{{template "footer"}}

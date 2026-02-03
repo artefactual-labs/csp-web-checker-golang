@@ -1,0 +1,35 @@
+[Unit]
+Description=CSP Web Checker Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Load env vars from /etc/default/csp-web if present.
+EnvironmentFile=-/etc/default/csp-web
+
+ExecStart=/usr/local/bin/csp-web
+
+# Run as dedicated system user
+User=csp-check
+Group=csp-check
+
+Restart=on-failure
+RestartSec=2
+WorkingDirectory=/var/lib/csp-web
+Environment=GOTRACEBACK=crash
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ProtectKernelLogs=yes
+ProtectKernelTunables=yes
+ProtectClock=yes
+ProtectHostname=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+{{template "header"}}
+<div class="card">
+  <h2>Run CSP Check</h2>
+  <form method="post" action="/runs" data-processing="1">
+    <label for="profile_id">Profile</label>
+    <select name="profile_id" id="profile_id">
+      <option value="">(default)</option>
+      {{range .Profiles}}
+      <option value="{{.ID}}">{{.Name}}</option>
+      {{end}}
+    </select>
+
+    <label for="urls">URLs (one per line)</label>
+    <textarea name="urls" id="urls" placeholder="https://example.org/\nhttps://example.org/about">{{.PrefillURLs}}</textarea>
+    <div class="meta">Lines starting with # are ignored. Only full http/https URLs are accepted.</div>
+
+    <button type="submit">Run Check</button>
+    <div class="processing"><span class="spinner"></span>Running CSP check…</div>
+  </form>
+</div>
+{{template "footer"}}

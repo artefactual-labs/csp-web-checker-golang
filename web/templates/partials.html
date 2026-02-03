@@ -1,0 +1,202 @@
+{{define "header"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSP Web Checker</title>
+  <link rel="icon" href="/static/favicon.ico">
+  <style>
+    :root {
+      --bg: #f7f9fb;
+      --ink: #1f2a33;
+      --accent: #2c6fb7;
+      --accent-dark: #1e4f88;
+      --muted: #5d6b75;
+      --card: #ffffff;
+      --border: #d7e0ea;
+      --header-bg: #103a63;
+    }
+    body {
+      margin: 0;
+      font-family: "Source Sans Pro", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    header {
+      padding: 20px 32px 16px 32px;
+      background: var(--header-bg);
+      color: #ffffff;
+      border-bottom: 4px solid var(--accent);
+    }
+    header h1 {
+      margin: 0 0 6px 0;
+      font-size: 26px;
+      letter-spacing: 0.2px;
+      font-weight: 700;
+    }
+    nav a {
+      margin-right: 16px;
+      color: #e5eef7;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    nav a:hover {
+      color: #ffffff;
+      text-decoration: underline;
+    }
+    main {
+      padding: 24px 40px 56px 40px;
+      max-width: 1440px;
+      width: min(96vw, 1440px);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 6px 16px rgba(16, 58, 99, 0.08);
+    }
+    .browser-section {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #f8fbff;
+    }
+    .browser-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: capitalize;
+      color: var(--accent-dark);
+      border-left: 4px solid var(--accent);
+      padding-left: 10px;
+    }
+    .highlight-block {
+      background: #eef5ff;
+      border: 2px solid var(--accent);
+      box-shadow: 0 6px 14px rgba(30, 79, 136, 0.12);
+    }
+    .key-col {
+      font-weight: 700;
+      color: #0f355c;
+    }
+    .key-header {
+      background: #f0f6ff;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 12px 0 6px 0;
+    }
+    textarea, select, input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: "Source Code Pro", "Courier New", Courier, monospace;
+      font-size: 13px;
+      background: #fff;
+    }
+    textarea {
+      min-height: 160px;
+    }
+    .btn,
+    button {
+      margin-top: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      line-height: 1.2;
+    }
+    .btn:hover,
+    button:hover {
+      background: var(--accent-dark);
+    }
+    .processing {
+      display: none;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      align-items: center;
+      gap: 8px;
+    }
+    .processing.active {
+      display: inline-flex;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #c8d6e5;
+      border-top: 2px solid var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    code {
+      background: #eef3f8;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>CSP Web Checker</h1>
+  <nav>
+    <a href="/">New Run</a>
+    <a href="/runs">Run History</a>
+    <a href="/profiles">Profiles</a>
+  </nav>
+</header>
+<main>
+{{end}}
+
+{{define "footer"}}
+</main>
+<script>
+  (function () {
+    var forms = document.querySelectorAll("form[data-processing]");
+    for (var i = 0; i < forms.length; i++) {
+      forms[i].addEventListener("submit", function (ev) {
+        var form = ev.target;
+        var indicator = form.querySelector(".processing");
+        var button = form.querySelector("button[type=\"submit\"]");
+        if (indicator) indicator.classList.add("active");
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Running...";
+        }
+      });
+    }
+  })();
+</script>
+</body>
+</html>
+{{end}}

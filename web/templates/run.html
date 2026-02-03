@@ -1,0 +1,144 @@
+{{template "header"}}
+<div class="card">
+  <h2>Run #{{.Run.ID}}</h2>
+  <p class="meta">Created: {{.Run.CreatedAt}} | Exit code: {{.Run.ExitCode}} | Elapsed: {{.Run.ElapsedMs}} ms</p>
+  <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+    <form method="post" action="/runs/rerun" data-processing="1" style="margin: 0; display: flex; gap: 8px; align-items: center;">
+      <input type="hidden" name="id" value="{{.Run.ID}}" />
+      <select name="profile_id">
+        <option value="">(use original)</option>
+        {{range .Profiles}}
+        <option value="{{.ID}}">{{.Name}}</option>
+        {{end}}
+      </select>
+      <button type="submit">Re-run</button>
+    </form>
+    <a href="/runs/export?id={{.Run.ID}}" class="btn">Export JSON (all browsers)</a>
+    <a href="/runs/export?id={{.Run.ID}}&pretty=1" class="btn">Export JSON (pretty)</a>
+    <form method="post" action="/runs/copy" style="margin: 0;">
+      <input type="hidden" name="id" value="{{.Run.ID}}" />
+      <button type="submit">Copy URLs to New Run</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Grouped Issues</h2>
+  <p class="meta">Note: CSP reporting can differ by browser engine. For example, tracking pixel requests may appear as <code>img-src</code> in Firefox but as <code>connect-src</code> in Chromium/WebKit. If you want fixes that work across browsers, allow the origin under every directive reported by any engine (unless you intentionally want it blocked).</p>
+  <div class="browser-section highlight-block">
+    <h3 class="browser-title">All Browsers (merged)</h3>
+  {{if .Merged}}
+  <table>
+    <thead>
+      <tr>
+        <th class="key-header">Directive / Blocked Origin</th>
+        <th>Count</th>
+        <th>Browsers</th>
+        <th>Applied Directive</th>
+        <th>Pages</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Merged}}
+      <tr>
+        <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
+        <td>{{.Group.Count}}</td>
+        <td>{{joinList .Browsers}}</td>
+        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
+        <td>
+          {{range $page, $vs := .Group.Pages}}
+            <div><code>{{$page}}</code> ({{len $vs}})</div>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p class="meta">No CSP violations found.</p>
+    {{end}}
+  </div>
+  {{range .Browsers}}
+  <div class="browser-section">
+  <h3 class="browser-title">{{.Name}}</h3>
+  {{if .Groups}}
+  <table>
+    <thead>
+      <tr>
+        <th class="key-header">Directive / Blocked Origin</th>
+        <th>Count</th>
+        <th>Applied Directive</th>
+        <th>Pages</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Groups}}
+      <tr>
+        <td class="key-col">{{.EffectiveDirective}} → {{.BlockedOrigin}}</td>
+        <td>{{.Count}}</td>
+        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .}}</div></td>
+        <td>
+          {{range $page, $vs := .Pages}}
+            <div><code>{{$page}}</code> ({{len $vs}})</div>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="meta">No CSP violations found.</p>
+  {{end}}
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Page Status</h2>
+  {{range .Browsers}}
+  <div class="browser-section">
+  <h3 class="browser-title">{{.Name}}</h3>
+  {{if .Report.Results}}
+  <table>
+    <thead>
+      <tr>
+        <th>URL</th>
+        <th>Status</th>
+        <th>Time</th>
+        <th>Violations</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Report.Results}}
+      <tr>
+        <td><code>{{.URL}}</code></td>
+        <td>{{if .Status}}{{.Status}}{{else}}?{{end}}</td>
+        <td>{{.DurationMs}} ms</td>
+        <td>{{len .Violations}}</td>
+        <td>{{if .Error}}{{.Error}}{{else}}—{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="meta">No page results.</p>
+  {{end}}
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <h2>Raw JSON</h2>
+  {{range .Browsers}}
+  <div class="browser-section">
+    <h3 class="browser-title">{{.Name}}</h3>
+    <pre style="white-space: pre-wrap; max-height: 360px; overflow: auto; border: 1px solid #d7e0ea; padding: 12px; background: #f8fbff;">{{jsonPretty .Report}}</pre>
+  </div>
+  {{end}}
+  <details style="margin-top: 12px;">
+    <summary class="meta">Show combined raw JSON</summary>
+    <pre style="white-space: pre-wrap; max-height: 360px; overflow: auto; border: 1px solid #d7e0ea; padding: 12px; background: #f8fbff;">{{.Run.ResultsJSON}}</pre>
+  </details>
+</div>
+{{template "footer"}}

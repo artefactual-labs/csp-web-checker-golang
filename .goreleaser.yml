@@ -1,0 +1,66 @@
+version: 2
+project_name: csp-web-checker-golang
+
+release:
+  github:
+    owner: artefactual-labs
+    name: csp-web-checker-golang
+
+builds:
+  - id: csp-web
+    main: .
+    binary: csp-web
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{.Version}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: git
+  abbrev: 8
+
+nfpms:
+  - id: default
+    package_name: csp-web
+    formats: [deb, rpm]
+    vendor: Artefactual Systems Inc.
+    homepage: https://github.com/artefactual-labs/csp-web-checker-golang
+    maintainer: Artefactual Systems Inc. <info@artefactual.com>
+    description: CSP web checker service using Playwright.
+    license: Apache-2.0
+    bindir: /usr/local/bin
+    file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}'
+    contents:
+      - src: systemd/csp-web.service
+        dst: /etc/systemd/system/csp-web.service
+        type: config
+      - src: packaging/default/csp-web
+        dst: /etc/default/csp-web
+        type: config
+      - src: csp-check.mjs
+        dst: /usr/local/bin/csp-check.mjs
+        type: config
+    scripts:
+      postinstall: packaging/nfpm/postinstall.sh
+      preremove: packaging/nfpm/preremove.sh
+      postremove: packaging/nfpm/postremove.sh

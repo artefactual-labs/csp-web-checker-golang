@@ -1,0 +1,44 @@
+{{template "header"}}
+<div class="card">
+  <h2>Run History</h2>
+  {{if .Runs}}
+  <table>
+    <thead>
+      <tr>
+        <th>Run</th>
+        <th>Created</th>
+        <th>Pages</th>
+        <th>Violations</th>
+        <th>Exit</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Runs}}
+      <tr>
+        <td><a href="/runs/{{.ID}}">#{{.ID}}</a></td>
+        <td>{{.CreatedAt}}</td>
+        <td>{{with $s := .SummaryJSON}}{{jsonPages $s}}{{end}}</td>
+        <td>{{with $s := .SummaryJSON}}{{jsonViolations $s}}{{end}}</td>
+        <td>{{.ExitCode}}</td>
+        <td>
+          <form method="post" action="/runs/rerun" data-processing="1" style="margin: 0;">
+            <input type="hidden" name="id" value="{{.ID}}" />
+            <select name="profile_id" style="margin-bottom: 6px;">
+              <option value="">(use original)</option>
+              {{range $.Profiles}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+            <button type="submit">Re-run</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p class="meta">No runs yet.</p>
+  {{end}}
+</div>
+{{template "footer"}}
