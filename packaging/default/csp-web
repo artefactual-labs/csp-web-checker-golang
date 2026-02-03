@@ -8,6 +8,8 @@ CSP_WEB_DB="/var/lib/csp-web/data.db"
 CSP_NODE_BIN="/usr/local/bin/node"
 CSP_SCRIPT_PATH="/usr/local/bin/csp-check.mjs"
 NODE_PATH="/var/lib/csp-web/.npm-global/lib/node_modules"
+HOME="/var/lib/csp-web"
+PLAYWRIGHT_BROWSERS_PATH="/var/lib/csp-web/.cache/ms-playwright"
 
 # Ensure the service can find Playwright global modules
 PATH=/var/lib/csp-web/.npm-global/bin:/usr/local/bin:/usr/bin:/bin

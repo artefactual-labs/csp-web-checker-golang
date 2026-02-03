@@ -13,6 +13,9 @@ ExecStart=/usr/local/bin/csp-web
 User=csp-check
 Group=csp-check
 
+# Ensure Playwright cache paths are writable for the service user
+Environment=HOME=/var/lib/csp-web
+
 Restart=on-failure
 RestartSec=2
 WorkingDirectory=/var/lib/csp-web
