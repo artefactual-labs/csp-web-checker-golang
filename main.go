@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"embed"
+	"io/fs"
 	"html/template"
 	"io"
 	"log"
@@ -160,7 +162,7 @@ func main() {
 		"jsonPretty":     jsonPretty,
 		"toJSON":         toJSON,
 		"joinList":       joinList,
-	}).ParseFS(templateFS, "*.html")
+	}).ParseFS(templateFS, "web/templates/*.html")
 	if err != nil {
 		log.Fatalf("templates: %v", err)
 	}
@@ -176,7 +178,9 @@ func main() {
 	mux.HandleFunc("/runs/copy", s.handleRunCopy)
 	mux.HandleFunc("/profiles", s.handleProfiles)
 	mux.HandleFunc("/profiles/update", s.handleProfileUpdate)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	if staticFS, err := fs.Sub(embeddedFS, "web/static"); err == nil {
+		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	}
 
 	log.Printf("csp-web %s listening on %s", version, addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
@@ -1049,7 +1053,10 @@ func envDefault(key, def string) string {
 	return v
 }
 
-var templateFS = os.DirFS("web/templates")
+//go:embed web/templates/*.html web/static/*
+var embeddedFS embed.FS
+
+var templateFS = embeddedFS
 
 func jsonPages(summary string) int {
 	var totals ReportTotals
