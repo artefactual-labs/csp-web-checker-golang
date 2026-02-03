@@ -55,6 +55,14 @@ sudo rpm -Uvh csp-web-checker-golang_<version>_x86_64.rpm
 
 This creates the system user `csp-check`, installs the service unit, and writes defaults to `/etc/default/csp-web`.
 
+### Ubuntu 20.04 tested flow (summary)
+
+1) Install Node.js via tarball (no apt).  
+2) Install Playwright OS dependencies via apt.  
+3) Install Playwright under `/var/lib/csp-web` for `csp-check`.  
+4) Ensure `PATH`, `NODE_PATH`, `HOME`, and `PLAYWRIGHT_BROWSERS_PATH` are set in `/etc/default/csp-web`.  
+5) Restart the service.
+
 ### 2) Install Node.js
 
 Install Node.js 18+ from your distro or NodeSource. Example (Debian/Ubuntu):
@@ -129,6 +137,8 @@ sudo -u csp-check -H bash -c "export HOME=/var/lib/csp-web; /var/lib/csp-web/.np
 ```
 
 If `npm` is not found in the service user PATH, ensure Node.js is installed system-wide or update `/etc/default/csp-web` to point to the correct `CSP_NODE_BIN`.
+
+Note: on Ubuntu 20.04, avoid running `npx playwright install-deps` as root if you want to avoid temporary root npm installs. Use the apt lists above instead.
 
 ### 5) Configure defaults
 
