@@ -162,7 +162,16 @@ func main() {
 		"groupDirective": groupDirective,
 		"jsonPretty":     jsonPretty,
 		"toJSON":         toJSON,
-		"joinList":       joinList,
+		"groupSource":     groupSource,
+		"groupHint":       groupHint,
+		"formatDirective": formatDirective,
+		"groupSourceLink": groupSourceLink,
+		"groupSnippetLink": groupSnippetLink,
+		"groupSourceNote": groupSourceNote,
+		"groupSourceURL":  groupSourceURL,
+		"groupSourceLine": groupSourceLine,
+		"queryEscape":     queryEscape,
+		"joinList":        joinList,
 	}).ParseFS(templateFS, "web/templates/*.html")
 	if err != nil {
 		log.Fatalf("templates: %v", err)
@@ -177,8 +186,10 @@ func main() {
 	mux.HandleFunc("/runs/rerun", s.handleRunRerun)
 	mux.HandleFunc("/runs/export", s.handleRunExport)
 	mux.HandleFunc("/runs/copy", s.handleRunCopy)
+	mux.HandleFunc("/runs/snippet", s.handleRunSnippet)
 	mux.HandleFunc("/profiles", s.handleProfiles)
 	mux.HandleFunc("/profiles/update", s.handleProfileUpdate)
+	mux.HandleFunc("/docs", s.handleDocs)
 	if staticFS, err := fs.Sub(embeddedFS, "web/static"); err == nil {
 		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	}
@@ -620,6 +631,14 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.render(w, "docs.html", map[string]any{})
+}
+
 func (s *Server) handleRunExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -685,6 +704,83 @@ func (s *Server) handleRunCopy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/?urls="+url.QueryEscape(run.URLsText), http.StatusSeeOther)
+}
+
+func (s *Server) handleRunSnippet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	rawURL := strings.TrimSpace(r.URL.Query().Get("url"))
+	if rawURL == "" {
+		http.Error(w, "url required", http.StatusBadRequest)
+		return
+	}
+	lineStr := strings.TrimSpace(r.URL.Query().Get("line"))
+	if lineStr == "" {
+		http.Error(w, "line required", http.StatusBadRequest)
+		return
+	}
+	lineNum, err := strconv.Atoi(lineStr)
+	if err != nil || lineNum <= 0 {
+		http.Error(w, "invalid line", http.StatusBadRequest)
+		return
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		http.Error(w, "invalid url", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		http.Error(w, "request failed", http.StatusBadRequest)
+		return
+	}
+	req.Header.Set("User-Agent", "csp-web-snippet")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		http.Error(w, "fetch failed", http.StatusBadRequest)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		http.Error(w, "fetch failed", http.StatusBadRequest)
+		return
+	}
+
+	const maxBytes = 1 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes))
+	if err != nil {
+		http.Error(w, "read failed", http.StatusBadRequest)
+		return
+	}
+	lines := strings.Split(string(body), "\n")
+	if lineNum > len(lines) {
+		http.Error(w, "line out of range", http.StatusBadRequest)
+		return
+	}
+
+	start := lineNum - 4
+	if start < 1 {
+		start = 1
+	}
+	end := lineNum + 3
+	if end > len(lines) {
+		end = len(lines)
+	}
+	var b strings.Builder
+	for i := start; i <= end; i++ {
+		fmt.Fprintf(&b, "%4d: %s\n", i, lines[i-1])
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"snippet.txt\"")
+	_, _ = w.Write([]byte(b.String()))
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data map[string]any) {
@@ -1175,6 +1271,100 @@ func groupDirective(g GroupedViolation) string {
 				return val
 			}
 		}
+	}
+	return ""
+}
+
+func groupSource(g GroupedViolation) string {
+	for _, vs := range g.Pages {
+		for _, v := range vs {
+			source := strings.TrimSpace(v.SourceFile)
+			if source == "" {
+				source = strings.TrimSpace(v.DocumentURI)
+			}
+			if source == "" {
+				continue
+			}
+			ln := "?"
+			if v.LineNumber != nil && *v.LineNumber > 0 {
+				ln = fmt.Sprintf("%d", *v.LineNumber)
+			}
+			col := "?"
+			if v.ColumnNumber != nil && *v.ColumnNumber > 0 {
+				col = fmt.Sprintf("%d", *v.ColumnNumber)
+			}
+			if ln == "?" && col == "?" {
+				return source
+			}
+			return fmt.Sprintf("%s:%s:%s", source, ln, col)
+		}
+	}
+	return ""
+}
+
+func groupSourceLink(g GroupedViolation) template.URL {
+	for page := range g.Pages {
+		return template.URL("view-source:" + page)
+	}
+	return ""
+}
+
+func groupSourceURL(g GroupedViolation) string {
+	for _, vs := range g.Pages {
+		for _, v := range vs {
+			source := strings.TrimSpace(v.SourceFile)
+			if source == "" {
+				source = strings.TrimSpace(v.DocumentURI)
+			}
+			if source != "" {
+				return source
+			}
+		}
+	}
+	return ""
+}
+
+func groupSourceLine(g GroupedViolation) int {
+	for _, vs := range g.Pages {
+		for _, v := range vs {
+			if v.LineNumber != nil && *v.LineNumber > 0 {
+				return *v.LineNumber
+			}
+		}
+	}
+	return 0
+}
+
+func groupSnippetLink(g GroupedViolation) template.URL {
+	source := groupSourceURL(g)
+	line := groupSourceLine(g)
+	if source == "" || line <= 0 {
+		return ""
+	}
+	return template.URL(fmt.Sprintf("/runs/snippet?url=%s&line=%d", url.QueryEscape(source), line))
+}
+
+func groupSourceNote(g GroupedViolation) string {
+	if groupSourceLine(g) > 0 {
+		return ""
+	}
+	return "Line info not reported by some browsers (often Firefox)."
+}
+
+func queryEscape(s string) string {
+	return url.QueryEscape(s)
+}
+
+func formatDirective(d string) string {
+	if strings.TrimSpace(d) == "" {
+		return "N/A"
+	}
+	return d
+}
+
+func groupHint(g GroupedViolation) string {
+	if strings.HasPrefix(strings.ToLower(g.EffectiveDirective), "style-src-attr") {
+		return "Style attributes are blocked; use CSS classes or add style-src-attr policy."
 	}
 	return ""
 }

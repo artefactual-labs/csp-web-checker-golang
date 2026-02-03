@@ -36,6 +36,8 @@
         <th>Count</th>
         <th>Browsers</th>
         <th>Applied Directive</th>
+        <th>Source</th>
+        <th>Hint</th>
         <th>Pages</th>
       </tr>
     </thead>
@@ -45,7 +47,9 @@
           <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
           <td>{{.Group.Count}}</td>
           <td>{{joinList .Browsers}}</td>
-          <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
+          <td><div style="max-width: 360px; white-space: normal;">{{formatDirective (groupDirective .Group)}}</div></td>
+          <td><div style="max-width: 280px; white-space: normal;">{{groupSource .Group}}{{if groupSourceLink .Group}} <button class="copy-btn" data-link="{{groupSourceLink .Group}}" title="Copy view-source link" aria-label="Copy view-source link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H6c-1.1 0-2 .9-2 2v12h2V3h10V1zm3 4H10c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h9c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H10V7h9v14z"/></svg></button>{{end}}{{if groupSnippetLink .Group}} <a class="snippet-link" href="{{groupSnippetLink .Group}}" title="Download snippet" aria-label="Download snippet" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18v10.17l3.59-3.58L17 10l-5 5-5-5 1.41-1.41L11 12.17V2h1z"/></svg></a>{{end}}{{if groupSourceNote .Group}} <span class="note">{{groupSourceNote .Group}}</span>{{end}}</div></td>
+          <td><div style="max-width: 280px; white-space: normal;">{{groupHint .Group}}</div></td>
           <td>
             {{range $page, $vs := .Group.Pages}}
               <div><code>{{$page}}</code> ({{len $vs}})</div>
@@ -69,6 +73,8 @@
         <th class="key-header">Directive / Blocked Origin</th>
         <th>Count</th>
         <th>Applied Directive</th>
+        <th>Source</th>
+        <th>Hint</th>
         <th>Pages</th>
       </tr>
     </thead>
@@ -77,7 +83,9 @@
       <tr>
         <td class="key-col">{{.EffectiveDirective}} → {{.BlockedOrigin}}</td>
         <td>{{.Count}}</td>
-        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .}}</div></td>
+        <td><div style="max-width: 360px; white-space: normal;">{{formatDirective (groupDirective .)}}</div></td>
+        <td><div style="max-width: 280px; white-space: normal;">{{groupSource .}}{{if groupSourceLink .}} <button class="copy-btn" data-link="{{groupSourceLink .}}" title="Copy view-source link" aria-label="Copy view-source link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H6c-1.1 0-2 .9-2 2v12h2V3h10V1zm3 4H10c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h9c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H10V7h9v14z"/></svg></button>{{end}}{{if groupSnippetLink .}} <a class="snippet-link" href="{{groupSnippetLink .}}" title="Download snippet" aria-label="Download snippet" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18v10.17l3.59-3.58L17 10l-5 5-5-5 1.41-1.41L11 12.17V2h1z"/></svg></a>{{end}}{{if groupSourceNote .}} <span class="note">{{groupSourceNote .}}</span>{{end}}</div></td>
+        <td><div style="max-width: 280px; white-space: normal;">{{groupHint .}}</div></td>
         <td>
           {{range $page, $vs := .Pages}}
             <div><code>{{$page}}</code> ({{len $vs}})</div>
@@ -107,6 +115,8 @@
           <th>Count</th>
           <th>Browsers</th>
           <th>Applied Directive</th>
+          <th>Source</th>
+          <th>Hint</th>
           <th>Pages</th>
         </tr>
       </thead>
@@ -116,7 +126,9 @@
           <td class="key-col">{{.Group.EffectiveDirective}} → {{.Group.BlockedOrigin}}</td>
           <td>{{.Group.Count}}</td>
           <td>{{joinList .Browsers}}</td>
-          <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .Group}}</div></td>
+          <td><div style="max-width: 360px; white-space: normal;">{{formatDirective (groupDirective .Group)}}</div></td>
+          <td><div style="max-width: 280px; white-space: normal;">{{groupSource .Group}}{{if groupSourceLink .Group}} <button class="copy-btn" data-link="{{groupSourceLink .Group}}" title="Copy view-source link" aria-label="Copy view-source link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H6c-1.1 0-2 .9-2 2v12h2V3h10V1zm3 4H10c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h9c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H10V7h9v14z"/></svg></button>{{end}}{{if groupSnippetLink .Group}} <a class="snippet-link" href="{{groupSnippetLink .Group}}" title="Download snippet" aria-label="Download snippet" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18v10.17l3.59-3.58L17 10l-5 5-5-5 1.41-1.41L11 12.17V2h1z"/></svg></a>{{end}}{{if groupSourceNote .Group}} <span class="note">{{groupSourceNote .Group}}</span>{{end}}</div></td>
+          <td><div style="max-width: 280px; white-space: normal;">{{groupHint .Group}}</div></td>
           <td>
             {{range $page, $vs := .Group.Pages}}
               <div><code>{{$page}}</code> ({{len $vs}})</div>
@@ -140,6 +152,8 @@
         <th class="key-header">Directive / Blocked Origin</th>
         <th>Count</th>
         <th>Applied Directive</th>
+        <th>Source</th>
+        <th>Hint</th>
         <th>Pages</th>
       </tr>
     </thead>
@@ -148,7 +162,9 @@
       <tr>
         <td class="key-col">{{.EffectiveDirective}} → {{.BlockedOrigin}}</td>
         <td>{{.Count}}</td>
-        <td><div style="max-width: 360px; white-space: normal;">{{groupDirective .}}</div></td>
+        <td><div style="max-width: 360px; white-space: normal;">{{formatDirective (groupDirective .)}}</div></td>
+        <td><div style="max-width: 280px; white-space: normal;">{{groupSource .}}{{if groupSourceLink .}} <button class="copy-btn" data-link="{{groupSourceLink .}}" title="Copy view-source link" aria-label="Copy view-source link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H6c-1.1 0-2 .9-2 2v12h2V3h10V1zm3 4H10c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h9c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H10V7h9v14z"/></svg></button>{{end}}{{if groupSnippetLink .}} <a class="snippet-link" href="{{groupSnippetLink .}}" title="Download snippet" aria-label="Download snippet" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zm7-18v10.17l3.59-3.58L17 10l-5 5-5-5 1.41-1.41L11 12.17V2h1z"/></svg></a>{{end}}{{if groupSourceNote .}} <span class="note">{{groupSourceNote .}}</span>{{end}}</div></td>
+        <td><div style="max-width: 280px; white-space: normal;">{{groupHint .}}</div></td>
         <td>
           {{range $page, $vs := .Pages}}
             <div><code>{{$page}}</code> ({{len $vs}})</div>

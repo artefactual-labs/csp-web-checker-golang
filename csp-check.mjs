@@ -197,7 +197,7 @@ async function checkUrl(context, url) {
         sourceFile: "console",
         lineNumber: null,
         columnNumber: null,
-        sample: null,
+        sample: text || null,
       });
     });
   }
@@ -434,8 +434,11 @@ async function createContext() {
     userAgent: USER_AGENT,
     locale: "en-US",
     viewport: { width: 1280, height: 720 },
+    timezoneId: "UTC",
     extraHTTPHeaders: {
       "Accept-Language": ACCEPT_LANGUAGE,
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
     },
   });
 }
