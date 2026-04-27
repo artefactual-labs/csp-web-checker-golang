@@ -1,4 +1,4 @@
-module csp-web-checker-golang
+module github.com/artefactual-labs/csp-web-checker-golang
 
 go 1.21
 
