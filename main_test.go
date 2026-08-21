@@ -76,6 +76,50 @@ func TestExtractDirective(t *testing.T) {
 	}
 }
 
+func TestAppliedDirectiveFallbacks(t *testing.T) {
+	policy := "default-src 'self'; script-src 'self' 'nonce-abc'; style-src 'self'; child-src https://frames.example.org;"
+
+	scriptElem := appliedDirective(policy, "script-src-elem")
+	if scriptElem != "script-src 'self' 'nonce-abc'" {
+		t.Fatalf("script-src-elem applied directive=%q", scriptElem)
+	}
+
+	styleAttr := appliedDirective(policy, "style-src-attr")
+	if styleAttr != "style-src 'self'" {
+		t.Fatalf("style-src-attr applied directive=%q", styleAttr)
+	}
+
+	frame := appliedDirective(policy, "frame-src")
+	if frame != "child-src https://frames.example.org" {
+		t.Fatalf("frame-src applied directive=%q", frame)
+	}
+
+	img := appliedDirective(policy, "img-src")
+	if img != "default-src 'self'" {
+		t.Fatalf("img-src applied directive=%q", img)
+	}
+}
+
+func TestGroupHintInlineScript(t *testing.T) {
+	line := 361
+	g := GroupedViolation{
+		EffectiveDirective: "script-src-elem",
+		BlockedOrigin:      "inline",
+		Pages: map[string][]Violation{
+			"https://example.org/page": {
+				{
+					SourceFile: "https://example.org/page",
+					LineNumber: &line,
+				},
+			},
+		},
+	}
+	hint := groupHint(g)
+	if !strings.Contains(hint, "Open the snippet from Source") {
+		t.Fatalf("inline script hint=%q", hint)
+	}
+}
+
 func TestParseConfigBasicAuth(t *testing.T) {
 	cfg, err := parseConfig(`{"basicAuthUsername":"  user  ","basicAuthPassword":"secret"}`)
 	if err != nil {

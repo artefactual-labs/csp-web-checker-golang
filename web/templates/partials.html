@@ -86,7 +86,8 @@
     .key-header {
       background: #f0f6ff;
     }
-    .copy-btn {
+    .copy-btn,
+    .snippet-view-btn {
       margin-left: 6px;
       cursor: pointer;
       border: none;
@@ -95,8 +96,10 @@
       display: inline-flex;
       align-items: center;
       color: var(--accent);
+      margin-top: 0;
     }
-    .copy-btn svg {
+    .copy-btn svg,
+    .snippet-view-btn svg {
       width: 14px;
       height: 14px;
       fill: currentColor;
@@ -117,6 +120,58 @@
       width: 14px;
       height: 14px;
       fill: currentColor;
+    }
+    .snippet-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 42, 61, 0.48);
+    }
+    .snippet-modal.active {
+      display: flex;
+    }
+    .snippet-dialog {
+      width: min(920px, 94vw);
+      max-height: 86vh;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 18px 48px rgba(16, 58, 99, 0.28);
+      overflow: hidden;
+    }
+    .snippet-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fbff;
+    }
+    .snippet-dialog-title {
+      font-weight: 700;
+      color: var(--accent-dark);
+    }
+    .snippet-close {
+      margin: 0;
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+    .snippet-content {
+      margin: 0;
+      max-height: calc(86vh - 58px);
+      overflow: auto;
+      padding: 16px;
+      background: #f8fbff;
+      border: none;
+      white-space: pre-wrap;
+      font-family: "Source Code Pro", "Courier New", Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
     }
     label {
       display: block;
@@ -218,8 +273,48 @@
 
 {{define "footer"}}
 </main>
+<div class="snippet-modal" id="snippet-modal" aria-hidden="true">
+  <div class="snippet-dialog" role="dialog" aria-modal="true" aria-labelledby="snippet-title">
+    <div class="snippet-dialog-header">
+      <div class="snippet-dialog-title" id="snippet-title">Source Snippet</div>
+      <button type="button" class="snippet-close" id="snippet-close">Close</button>
+    </div>
+    <pre class="snippet-content" id="snippet-content"></pre>
+  </div>
+</div>
 <script>
   (function () {
+    var snippetModal = document.getElementById("snippet-modal");
+    var snippetContent = document.getElementById("snippet-content");
+    var snippetClose = document.getElementById("snippet-close");
+
+    function closeSnippetModal() {
+      if (!snippetModal) return;
+      snippetModal.classList.remove("active");
+      snippetModal.setAttribute("aria-hidden", "true");
+      if (snippetContent) snippetContent.textContent = "";
+    }
+
+    function openSnippetModal(text) {
+      if (!snippetModal || !snippetContent) return;
+      snippetContent.textContent = text;
+      snippetModal.classList.add("active");
+      snippetModal.setAttribute("aria-hidden", "false");
+      if (snippetClose) snippetClose.focus();
+    }
+
+    if (snippetClose) {
+      snippetClose.addEventListener("click", closeSnippetModal);
+    }
+    if (snippetModal) {
+      snippetModal.addEventListener("click", function (ev) {
+        if (ev.target === snippetModal) closeSnippetModal();
+      });
+    }
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") closeSnippetModal();
+    });
+
     var forms = document.querySelectorAll("form[data-processing]");
     for (var i = 0; i < forms.length; i++) {
       forms[i].addEventListener("submit", function (ev) {
@@ -235,6 +330,21 @@
     }
 
     document.addEventListener("click", function (ev) {
+      var snippetBtn = ev.target.closest(".snippet-view-btn");
+      if (snippetBtn) {
+        ev.preventDefault();
+        var snippetURL = snippetBtn.getAttribute("data-snippet-url");
+        if (!snippetURL) return;
+        openSnippetModal("Loading...");
+        fetch(snippetURL, { credentials: "same-origin" }).then(function (resp) {
+          if (!resp.ok) throw new Error("Snippet failed");
+          return resp.text();
+        }).then(openSnippetModal).catch(function () {
+          openSnippetModal("Could not load the source snippet.");
+        });
+        return;
+      }
+
       var btn = ev.target.closest(".copy-btn");
       if (!btn) return;
       ev.preventDefault();

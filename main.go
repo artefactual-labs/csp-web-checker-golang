@@ -783,7 +783,6 @@ func (s *Server) handleRunSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename=\"snippet.txt\"")
 	_, _ = w.Write([]byte(b.String()))
 }
 
@@ -1320,7 +1319,7 @@ func groupDirective(g GroupedViolation) string {
 			if strings.TrimSpace(v.OriginalPolicy) == "" || strings.TrimSpace(v.EffectiveDirective) == "" {
 				continue
 			}
-			if val := extractDirective(v.OriginalPolicy, v.EffectiveDirective); val != "" {
+			if val := appliedDirective(v.OriginalPolicy, v.EffectiveDirective); val != "" {
 				return val
 			}
 		}
@@ -1416,7 +1415,21 @@ func formatDirective(d string) string {
 }
 
 func groupHint(g GroupedViolation) string {
-	if strings.HasPrefix(strings.ToLower(g.EffectiveDirective), "style-src-attr") {
+	directive := strings.ToLower(strings.TrimSpace(g.EffectiveDirective))
+	blocked := strings.ToLower(strings.TrimSpace(g.BlockedOrigin))
+	if blocked == "inline" && strings.HasPrefix(directive, "script-src") {
+		if groupSnippetLink(g) != "" {
+			return "Inline script is blocked at the reported source line. Open the snippet from Source to inspect the exact script, then add the page nonce, move it to an allowed external file, or use a CSP hash."
+		}
+		return "Inline script is blocked. Add the page nonce to this script tag, move it to an allowed external file, or use a CSP hash."
+	}
+	if blocked == "inline" && strings.HasPrefix(directive, "style-src") {
+		if groupSnippetLink(g) != "" {
+			return "Inline style is blocked at the reported source line. Open the snippet from Source to inspect the exact style, then add the page nonce, move it to an allowed stylesheet, or use a CSP hash."
+		}
+		return "Inline style is blocked. Add the page nonce to this style tag, move it to an allowed stylesheet, or use a CSP hash."
+	}
+	if strings.HasPrefix(directive, "style-src-attr") {
 		return "Style attributes are blocked; use CSS classes or add style-src-attr policy."
 	}
 	return ""
@@ -1434,6 +1447,36 @@ func extractDirective(policy, directive string) string {
 		}
 	}
 	return ""
+}
+
+func appliedDirective(policy, directive string) string {
+	for _, candidate := range directiveFallbacks(directive) {
+		if val := extractDirective(policy, candidate); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func directiveFallbacks(directive string) []string {
+	d := strings.ToLower(strings.TrimSpace(directive))
+	switch d {
+	case "script-src-elem", "script-src-attr":
+		return []string{d, "script-src", "default-src"}
+	case "style-src-elem", "style-src-attr":
+		return []string{d, "style-src", "default-src"}
+	case "worker-src":
+		return []string{d, "child-src", "script-src", "default-src"}
+	case "frame-src":
+		return []string{d, "child-src", "default-src"}
+	case "connect-src", "font-src", "img-src", "manifest-src", "media-src", "object-src", "prefetch-src":
+		return []string{d, "default-src"}
+	default:
+		if d == "" {
+			return nil
+		}
+		return []string{d}
+	}
 }
 
 func parseIntForm(raw string) int {
