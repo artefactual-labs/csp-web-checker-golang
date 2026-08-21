@@ -34,6 +34,7 @@ if (!urlsFile) {
 
 const WAIT_AFTER_LOAD_MS = Number(process.env.CSP_WAIT_MS || 2000);
 const NAV_TIMEOUT_MS = Number(process.env.CSP_NAV_TIMEOUT_MS || 30000);
+const CLOSE_TIMEOUT_MS = Number(process.env.CSP_CLOSE_TIMEOUT_MS || 5000);
 const CONCURRENCY = Math.max(1, Number(process.env.CSP_CONCURRENCY || 1));
 const WAIT_UNTIL = String(process.env.CSP_WAIT_UNTIL || "domcontentloaded");
 const BETWEEN_URL_MS = Number(process.env.CSP_BETWEEN_URL_MS || 800);
@@ -48,6 +49,7 @@ const INCLUDE_REQUEST_FAILED = String(process.env.CSP_INCLUDE_REQUEST_FAILED || 
 const INCLUDE_CONSOLE_CSP = String(process.env.CSP_INCLUDE_CONSOLE_CSP || "1") === "1";
 const HEADLESS = String(process.env.CSP_HEADLESS || "1") !== "0";
 const STEALTH = String(process.env.CSP_STEALTH || "1") === "1";
+const TRACE = String(process.env.CSP_TRACE || "0") === "1";
 const BROWSER = String(process.env.CSP_BROWSER || "chromium").toLowerCase();
 
 const USER_AGENT =
@@ -55,9 +57,25 @@ const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const ACCEPT_LANGUAGE = process.env.CSP_ACCEPT_LANGUAGE || "en-US,en;q=0.9";
+const BASIC_AUTH_USERNAME = process.env.CSP_BASIC_AUTH_USERNAME || "";
+const BASIC_AUTH_PASSWORD = process.env.CSP_BASIC_AUTH_PASSWORD || "";
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function withTimeout(label, ms, fn) {
+  let timeout;
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function readUrlList(filePath) {
@@ -139,9 +157,58 @@ function fmtMs(ms) {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
+function shortenUrl(raw, maxLen = 240) {
+  if (!raw) return "";
+  return raw.length > maxLen ? raw.slice(0, maxLen) + "..." : raw;
+}
+
+function traceErrorSuffix(trace) {
+  if (!TRACE) return "";
+  const parts = [
+    `currentPageUrl=${shortenUrl(trace.currentPageUrl || "(none)")}`,
+    `lastFrameUrl=${shortenUrl(trace.lastFrameUrl || "(none)")}`,
+    `lastRequestUrl=${shortenUrl(trace.lastRequestUrl || "(none)")}`,
+  ];
+  if (trace.lastFailedRequestUrl) {
+    parts.push(
+      `lastFailedRequest=${shortenUrl(trace.lastFailedRequestUrl)} ${trace.lastFailedRequestError || ""}`.trim()
+    );
+  }
+  return ` Debug trace: ${parts.join("; ")}`;
+}
+
 async function checkUrl(context, url) {
   const page = await context.newPage();
   const violations = [];
+  const trace = {
+    currentPageUrl: url,
+    lastFrameUrl: "",
+    lastRequestUrl: "",
+    lastFailedRequestUrl: "",
+    lastFailedRequestError: "",
+  };
+
+  if (TRACE) {
+    page.on("framenavigated", (frame) => {
+      trace.lastFrameUrl = frame.url();
+      if (frame === page.mainFrame()) trace.currentPageUrl = frame.url();
+      console.error(
+        `[csp:trace] frame ${frame === page.mainFrame() ? "main" : "child"} navigated: ${shortenUrl(frame.url())}`
+      );
+    });
+    page.on("request", (request) => {
+      trace.lastRequestUrl = request.url();
+      console.error(`[csp:trace] request: ${request.method()} ${shortenUrl(request.url())}`);
+    });
+    page.on("requestfailed", (request) => {
+      const failure = request.failure();
+      trace.lastFailedRequestUrl = request.url();
+      trace.lastFailedRequestError = failure && failure.errorText ? failure.errorText : "";
+      console.error(
+        `[csp:trace] request failed: ${shortenUrl(request.url())} ${trace.lastFailedRequestError}`
+      );
+    });
+  }
 
   await page.exposeFunction("__reportCspViolation", (v) => {
     violations.push(v);
@@ -245,9 +312,23 @@ async function checkUrl(context, url) {
       await page.waitForTimeout(WAIT_AFTER_LOAD_MS);
     }
   } catch (e) {
-    error = String(e && e.message ? e.message : e);
+    error = String(e && e.message ? e.message : e) + traceErrorSuffix(trace);
   } finally {
-    await page.close();
+    try {
+      await withTimeout("page.close", CLOSE_TIMEOUT_MS, () => page.close());
+    } catch (e) {
+      const closeError = String(e && e.message ? e.message : e);
+      error = error ? `${error}; ${closeError}${traceErrorSuffix(trace)}` : closeError + traceErrorSuffix(trace);
+      console.error(`[csp]     page close failed for ${url}: ${closeError}`);
+      console.error(`[csp]     current page URL: ${shortenUrl(trace.currentPageUrl)}`);
+      console.error(`[csp]     last frame URL: ${shortenUrl(trace.lastFrameUrl || "(none)")}`);
+      console.error(`[csp]     last request URL: ${shortenUrl(trace.lastRequestUrl || "(none)")}`);
+      if (trace.lastFailedRequestUrl) {
+        console.error(
+          `[csp]     last failed request: ${shortenUrl(trace.lastFailedRequestUrl)} ${trace.lastFailedRequestError}`
+        );
+      }
+    }
   }
 
   const uniq = new Map();
@@ -407,11 +488,14 @@ const targets = readUrlList(urlsFile);
 console.error(`[csp] Targets: ${targets.length}`);
 console.error(`[csp] waitUntil: ${WAIT_UNTIL}`);
 console.error(`[csp] nav timeout: ${NAV_TIMEOUT_MS}ms`);
+console.error(`[csp] close timeout: ${CLOSE_TIMEOUT_MS}ms`);
 console.error(`[csp] settle wait: ${WAIT_AFTER_LOAD_MS}ms`);
 console.error(`[csp] concurrency: ${CONCURRENCY}`);
 console.error(`[csp] between-url delay: ${BETWEEN_URL_MS}ms`);
 console.error(`[csp] UA: ${USER_AGENT}`);
+console.error(`[csp] basic auth: ${BASIC_AUTH_USERNAME ? "configured" : "off"}`);
 console.error(`[csp] verbose: ${VERBOSE ? "on" : "off"} (details printed at end)`);
+console.error(`[csp] trace: ${TRACE ? "on" : "off"}`);
 
 const browserType = BROWSER === "firefox" ? firefox : BROWSER === "webkit" ? webkit : chromium;
 const launchArgs = BROWSER === "chromium" ? [
@@ -430,7 +514,7 @@ const browser = await browserType.launch({
 });
 
 async function createContext() {
-  return await browser.newContext({
+  const contextOptions = {
     userAgent: USER_AGENT,
     locale: "en-US",
     viewport: { width: 1280, height: 720 },
@@ -440,7 +524,14 @@ async function createContext() {
       "Cache-Control": "no-cache",
       Pragma: "no-cache",
     },
-  });
+  };
+  if (BASIC_AUTH_USERNAME) {
+    contextOptions.httpCredentials = {
+      username: BASIC_AUTH_USERNAME,
+      password: BASIC_AUTH_PASSWORD,
+    };
+  }
+  return await browser.newContext(contextOptions);
 }
 
 const results = await runQueue(targets, CONCURRENCY, async (u, i) => {
@@ -452,7 +543,13 @@ const results = await runQueue(targets, CONCURRENCY, async (u, i) => {
 
   const ctx = await createContext();
   const r = await checkUrl(ctx, u);
-  await ctx.close();
+  try {
+    await withTimeout("browserContext.close", CLOSE_TIMEOUT_MS, () => ctx.close());
+  } catch (e) {
+    const closeError = String(e && e.message ? e.message : e);
+    r.error = r.error ? `${r.error}; ${closeError}` : closeError;
+    console.error(`[csp]     context close failed for ${u}: ${closeError}`);
+  }
   const note = r.ok ? `HTTP ${r.status ?? "?"}` : "FAILED";
   console.error(
     `[csp]     ${note} in ${fmtMs(r.durationMs)}, violations=${r.violations.length}${
@@ -462,7 +559,12 @@ const results = await runQueue(targets, CONCURRENCY, async (u, i) => {
 
   return r;
 });
-await browser.close();
+try {
+  await withTimeout("browser.close", CLOSE_TIMEOUT_MS, () => browser.close());
+} catch (e) {
+  const closeError = String(e && e.message ? e.message : e);
+  console.error(`[csp] browser close failed: ${closeError}`);
+}
 
 if (OUTPUT_JSON) {
   const out = {
@@ -476,7 +578,10 @@ if (OUTPUT_JSON) {
       betweenUrlMs: BETWEEN_URL_MS,
       userAgent: USER_AGENT,
       acceptLanguage: ACCEPT_LANGUAGE,
+      basicAuthUsername: BASIC_AUTH_USERNAME,
+      basicAuthConfigured: Boolean(BASIC_AUTH_USERNAME),
       browser: BROWSER,
+      trace: TRACE,
       verbose: VERBOSE,
       showPolicy: SHOW_POLICY,
       policyMaxLen: POLICY_MAXLEN,

@@ -17,5 +17,6 @@ PATH=/var/lib/csp-web/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 # Optional Playwright toggles
 # CSP_HEADLESS=1
 # CSP_STEALTH=1
+# CSP_TRACE=0
 
 # Optional extra environment variables can be added here.
