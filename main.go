@@ -3,19 +3,19 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"embed"
-	"io/fs"
 	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -42,11 +42,11 @@ type Run struct {
 }
 
 type Report struct {
-	GeneratedAt string                 `json:"generatedAt"`
-	Config      map[string]any         `json:"config"`
-	Totals      ReportTotals           `json:"totals"`
-	Results     []ReportPageResult     `json:"results"`
-	BaseURL     string                 `json:"baseUrl"`
+	GeneratedAt string             `json:"generatedAt"`
+	Config      map[string]any     `json:"config"`
+	Totals      ReportTotals       `json:"totals"`
+	Results     []ReportPageResult `json:"results"`
+	BaseURL     string             `json:"baseUrl"`
 }
 
 type ReportTotals struct {
@@ -55,36 +55,36 @@ type ReportTotals struct {
 }
 
 type ReportPageResult struct {
-	URL        string       `json:"url"`
-	Status     *int         `json:"status"`
-	OK         bool         `json:"ok"`
-	Error      string       `json:"error"`
-	DurationMs int64        `json:"durationMs"`
-	Violations []Violation  `json:"violations"`
+	URL        string      `json:"url"`
+	Status     *int        `json:"status"`
+	OK         bool        `json:"ok"`
+	Error      string      `json:"error"`
+	DurationMs int64       `json:"durationMs"`
+	Violations []Violation `json:"violations"`
 }
 
 type Violation struct {
-	DocumentURI       string `json:"documentURI"`
-	Referrer          string `json:"referrer"`
-	BlockedURI        string `json:"blockedURI"`
-	BlockedOrigin     string `json:"blockedOrigin"`
+	DocumentURI        string `json:"documentURI"`
+	Referrer           string `json:"referrer"`
+	BlockedURI         string `json:"blockedURI"`
+	BlockedOrigin      string `json:"blockedOrigin"`
 	EffectiveDirective string `json:"effectiveDirective"`
-	ViolatedDirective string `json:"violatedDirective"`
-	OriginalPolicy    string `json:"originalPolicy"`
-	Disposition       string `json:"disposition"`
-	StatusCode        *int   `json:"statusCode"`
-	SourceFile        string `json:"sourceFile"`
-	LineNumber        *int   `json:"lineNumber"`
-	ColumnNumber      *int   `json:"columnNumber"`
-	Sample            string `json:"sample"`
+	ViolatedDirective  string `json:"violatedDirective"`
+	OriginalPolicy     string `json:"originalPolicy"`
+	Disposition        string `json:"disposition"`
+	StatusCode         *int   `json:"statusCode"`
+	SourceFile         string `json:"sourceFile"`
+	LineNumber         *int   `json:"lineNumber"`
+	ColumnNumber       *int   `json:"columnNumber"`
+	Sample             string `json:"sample"`
 }
 
 type GroupedViolation struct {
-	Key               string
+	Key                string
 	EffectiveDirective string
-	BlockedOrigin     string
-	Count             int
-	Pages             map[string][]Violation
+	BlockedOrigin      string
+	Count              int
+	Pages              map[string][]Violation
 }
 
 type MergedGroup struct {
@@ -98,14 +98,17 @@ type Server struct {
 }
 
 type CSPConfig struct {
-	WaitUntil      string `json:"waitUntil"`
-	NavTimeoutMs   int    `json:"navTimeoutMs"`
-	SettleWaitMs   int    `json:"settleWaitMs"`
-	Concurrency    int    `json:"concurrency"`
-	BetweenURLMs   int    `json:"betweenUrlMs"`
-	UserAgent      string `json:"userAgent"`
-	AcceptLanguage string `json:"acceptLanguage"`
-	Browser        string `json:"browser"`
+	WaitUntil         string `json:"waitUntil"`
+	NavTimeoutMs      int    `json:"navTimeoutMs"`
+	SettleWaitMs      int    `json:"settleWaitMs"`
+	Concurrency       int    `json:"concurrency"`
+	BetweenURLMs      int    `json:"betweenUrlMs"`
+	UserAgent         string `json:"userAgent"`
+	AcceptLanguage    string `json:"acceptLanguage"`
+	BasicAuthUsername string `json:"basicAuthUsername"`
+	BasicAuthPassword string `json:"basicAuthPassword,omitempty"`
+	Trace             bool   `json:"trace,omitempty"`
+	Browser           string `json:"browser"`
 }
 
 type BrowserReport struct {
@@ -123,19 +126,24 @@ type ProfileView struct {
 }
 
 type MultiReport struct {
-	GeneratedAt string             `json:"generatedAt"`
-	Config      map[string]any     `json:"config"`
-	Browsers    map[string]Report  `json:"browsers"`
+	GeneratedAt string            `json:"generatedAt"`
+	Config      map[string]any    `json:"config"`
+	Browsers    map[string]Report `json:"browsers"`
 }
 
 type RunSummary struct {
-	Pages      int                    `json:"pages"`
-	Violations int                    `json:"violations"`
+	Pages      int                     `json:"pages"`
+	Violations int                     `json:"violations"`
 	Browsers   map[string]ReportTotals `json:"browsers"`
 }
 
 var version = "dev"
+
 const defaultProfileName = "Default"
+const defaultWaitUntil = "load"
+const defaultUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+const defaultAcceptLanguage = "en-US,en;q=0.9"
+
 var browsers = []string{"chromium", "firefox", "webkit"}
 
 func main() {
@@ -156,22 +164,22 @@ func main() {
 	}
 
 	tmpl, err := template.New("").Funcs(template.FuncMap{
-		"jsonPages":      jsonPages,
-		"jsonViolations": jsonViolations,
-		"groupPolicy":    groupPolicy,
-		"groupDirective": groupDirective,
-		"jsonPretty":     jsonPretty,
-		"toJSON":         toJSON,
-		"groupSource":     groupSource,
-		"groupHint":       groupHint,
-		"formatDirective": formatDirective,
-		"groupSourceLink": groupSourceLink,
+		"jsonPages":        jsonPages,
+		"jsonViolations":   jsonViolations,
+		"groupPolicy":      groupPolicy,
+		"groupDirective":   groupDirective,
+		"jsonPretty":       jsonPretty,
+		"toJSON":           toJSON,
+		"groupSource":      groupSource,
+		"groupHint":        groupHint,
+		"formatDirective":  formatDirective,
+		"groupSourceLink":  groupSourceLink,
 		"groupSnippetLink": groupSnippetLink,
-		"groupSourceNote": groupSourceNote,
-		"groupSourceURL":  groupSourceURL,
-		"groupSourceLine": groupSourceLine,
-		"queryEscape":     queryEscape,
-		"joinList":        joinList,
+		"groupSourceNote":  groupSourceNote,
+		"groupSourceURL":   groupSourceURL,
+		"groupSourceLine":  groupSourceLine,
+		"queryEscape":      queryEscape,
+		"joinList":         joinList,
 	}).ParseFS(templateFS, "web/templates/*.html")
 	if err != nil {
 		log.Fatalf("templates: %v", err)
@@ -234,7 +242,7 @@ func ensureDefaultProfile(db *sql.DB) error {
 	var id int64
 	err := db.QueryRow(`SELECT id FROM profiles WHERE name = ?`, defaultProfileName).Scan(&id)
 	if err == nil {
-		return nil
+		return updateStockDefaultProfileWaitUntil(db, id)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -242,14 +250,42 @@ func ensureDefaultProfile(db *sql.DB) error {
 	// Migrate legacy default name if present.
 	var legacyID int64
 	if err := db.QueryRow(`SELECT id FROM profiles WHERE name = ?`, "Default (Chromium)").Scan(&legacyID); err == nil {
-		_, err := db.Exec(`UPDATE profiles SET name = ? WHERE id = ?`, defaultProfileName, legacyID)
-		return err
+		if _, err := db.Exec(`UPDATE profiles SET name = ? WHERE id = ?`, defaultProfileName, legacyID); err != nil {
+			return err
+		}
+		return updateStockDefaultProfileWaitUntil(db, legacyID)
 	}
 	cfg := defaultConfig()
 	cfgJSON, _ := json.Marshal(cfg)
 	_, err = db.Exec(`INSERT INTO profiles (name, config_json, created_at) VALUES (?, ?, ?)`,
 		defaultProfileName, string(cfgJSON), time.Now().UTC().Format(time.RFC3339),
 	)
+	return err
+}
+
+func updateStockDefaultProfileWaitUntil(db *sql.DB, id int64) error {
+	var raw string
+	if err := db.QueryRow(`SELECT config_json FROM profiles WHERE id = ?`, id).Scan(&raw); err != nil {
+		return err
+	}
+	var cfg CSPConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return nil
+	}
+	if cfg.WaitUntil != "networkidle" ||
+		cfg.NavTimeoutMs != 45000 ||
+		cfg.SettleWaitMs != 3000 ||
+		cfg.Concurrency != 1 ||
+		cfg.BetweenURLMs != 600 ||
+		cfg.UserAgent != defaultUserAgent ||
+		cfg.AcceptLanguage != defaultAcceptLanguage ||
+		cfg.BasicAuthUsername != "" ||
+		cfg.BasicAuthPassword != "" {
+		return nil
+	}
+	cfg.WaitUntil = defaultWaitUntil
+	cfgJSON, _ := json.Marshal(cfg)
+	_, err := db.Exec(`UPDATE profiles SET config_json = ? WHERE id = ?`, string(cfgJSON), id)
 	return err
 }
 
@@ -284,6 +320,7 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				cfg = defaultConfig()
 			}
+			cfg.BasicAuthPassword = ""
 			views = append(views, ProfileView{
 				ID:        p.ID,
 				Name:      p.Name,
@@ -305,28 +342,7 @@ func (s *Server) handleProfiles(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		cfg := defaultConfig()
-		if v := strings.TrimSpace(r.FormValue("wait_until")); v != "" {
-			cfg.WaitUntil = v
-		}
-		if v := parseIntForm(r.FormValue("nav_timeout_ms")); v > 0 {
-			cfg.NavTimeoutMs = v
-		}
-		if v := parseIntForm(r.FormValue("settle_wait_ms")); v >= 0 {
-			cfg.SettleWaitMs = v
-		}
-		if v := parseIntForm(r.FormValue("concurrency")); v > 0 {
-			cfg.Concurrency = v
-		}
-		if v := parseIntForm(r.FormValue("between_url_ms")); v >= 0 {
-			cfg.BetweenURLMs = v
-		}
-		if v := strings.TrimSpace(r.FormValue("user_agent")); v != "" {
-			cfg.UserAgent = v
-		}
-		if v := strings.TrimSpace(r.FormValue("accept_language")); v != "" {
-			cfg.AcceptLanguage = v
-		}
+		cfg := configFromForm(r)
 		cfgJSON, _ := json.Marshal(cfg)
 		if err := s.createProfile(r.Context(), name, string(cfgJSON)); err != nil {
 			http.Error(w, "create failed: "+err.Error(), http.StatusBadRequest)
@@ -362,27 +378,13 @@ func (s *Server) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
-	cfg := defaultConfig()
-	if v := strings.TrimSpace(r.FormValue("wait_until")); v != "" {
-		cfg.WaitUntil = v
-	}
-	if v := parseIntForm(r.FormValue("nav_timeout_ms")); v > 0 {
-		cfg.NavTimeoutMs = v
-	}
-	if v := parseIntForm(r.FormValue("settle_wait_ms")); v >= 0 {
-		cfg.SettleWaitMs = v
-	}
-	if v := parseIntForm(r.FormValue("concurrency")); v > 0 {
-		cfg.Concurrency = v
-	}
-	if v := parseIntForm(r.FormValue("between_url_ms")); v >= 0 {
-		cfg.BetweenURLMs = v
-	}
-	if v := strings.TrimSpace(r.FormValue("user_agent")); v != "" {
-		cfg.UserAgent = v
-	}
-	if v := strings.TrimSpace(r.FormValue("accept_language")); v != "" {
-		cfg.AcceptLanguage = v
+	cfg := configFromForm(r)
+	if cfg.BasicAuthUsername != "" && cfg.BasicAuthPassword == "" {
+		if existing, err := s.getProfile(r.Context(), id); err == nil {
+			if existingCfg, err := parseConfig(existing.ConfigJSON); err == nil {
+				cfg.BasicAuthPassword = existingCfg.BasicAuthPassword
+			}
+		}
 	}
 	cfgJSON, _ := json.Marshal(cfg)
 	if err := s.updateProfile(r.Context(), id, name, string(cfgJSON)); err != nil {
@@ -441,6 +443,8 @@ func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		applyBasicAuthFromForm(r, &cfg)
+		cfg.Trace = r.FormValue("trace") == "1"
 
 		start := time.Now()
 		report, exitCode, err := runCSPCheck(r.Context(), urls, cfg)
@@ -528,8 +532,8 @@ func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	start := time.Now()
-		report, exitCode, err := runCSPCheck(r.Context(), urls, cfg)
-		elapsed := time.Since(start)
+	report, exitCode, err := runCSPCheck(r.Context(), urls, cfg)
+	elapsed := time.Since(start)
 	if err != nil {
 		http.Error(w, "csp check failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -623,11 +627,11 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 	profiles, _ := s.listProfiles(r.Context())
 
 	s.render(w, "run.html", map[string]any{
-		"Run":      run,
-		"Browsers": browserReports,
+		"Run":        run,
+		"Browsers":   browserReports,
 		"MergedErr":  groupViolationsMultiByDisposition(browserReports, "enforce"),
 		"MergedWarn": groupViolationsMultiByDisposition(browserReports, "report-only"),
-		"Profiles": profiles,
+		"Profiles":   profiles,
 	})
 }
 
@@ -911,7 +915,12 @@ func runCSPCheck(ctx context.Context, urls []string, cfg CSPConfig) (MultiReport
 			"CSP_BETWEEN_URL_MS="+strconv.Itoa(cfg.BetweenURLMs),
 			"CSP_USER_AGENT="+cfg.UserAgent,
 			"CSP_ACCEPT_LANGUAGE="+cfg.AcceptLanguage,
+			"CSP_BASIC_AUTH_USERNAME="+cfg.BasicAuthUsername,
+			"CSP_BASIC_AUTH_PASSWORD="+cfg.BasicAuthPassword,
+			"CSP_TRACE="+boolEnv(cfg.Trace),
 			"CSP_BROWSER="+browser,
+			"NO_COLOR=1",
+			"FORCE_COLOR=0",
 		)
 
 		stderr, err := cmd.StderrPipe()
@@ -950,13 +959,16 @@ func runCSPCheck(ctx context.Context, urls []string, cfg CSPConfig) (MultiReport
 	multi := MultiReport{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Config: map[string]any{
-			"waitUntil":      cfg.WaitUntil,
-			"navTimeoutMs":   cfg.NavTimeoutMs,
-			"settleWaitMs":   cfg.SettleWaitMs,
-			"concurrency":    cfg.Concurrency,
-			"betweenUrlMs":   cfg.BetweenURLMs,
-			"userAgent":      cfg.UserAgent,
-			"acceptLanguage": cfg.AcceptLanguage,
+			"waitUntil":           cfg.WaitUntil,
+			"navTimeoutMs":        cfg.NavTimeoutMs,
+			"settleWaitMs":        cfg.SettleWaitMs,
+			"concurrency":         cfg.Concurrency,
+			"betweenUrlMs":        cfg.BetweenURLMs,
+			"userAgent":           cfg.UserAgent,
+			"acceptLanguage":      cfg.AcceptLanguage,
+			"basicAuthUsername":   cfg.BasicAuthUsername,
+			"basicAuthConfigured": cfg.BasicAuthUsername != "",
+			"trace":               cfg.Trace,
 		},
 		Browsers: browserReports,
 	}
@@ -964,24 +976,24 @@ func runCSPCheck(ctx context.Context, urls []string, cfg CSPConfig) (MultiReport
 }
 
 func exitCodeFromErr(err error) int {
-    var exitErr *exec.ExitError
-    if err == nil {
-        return 0
-    }
-    if errors.As(err, &exitErr) {
-        return exitErr.ExitCode()
-    }
-    return 1
+	var exitErr *exec.ExitError
+	if err == nil {
+		return 0
+	}
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return 1
 }
 
 func exitCodeFromState(state *os.ProcessState, err error) int {
-    if err != nil {
-        return exitCodeFromErr(err)
-    }
-    if state == nil {
-        return 0
-    }
-    return state.ExitCode()
+	if err != nil {
+		return exitCodeFromErr(err)
+	}
+	if state == nil {
+		return 0
+	}
+	return state.ExitCode()
 }
 
 func parseURLList(text string) []string {
@@ -1029,10 +1041,10 @@ func groupViolations(results []ReportPageResult) []GroupedViolation {
 			g, ok := groups[key]
 			if !ok {
 				g = &GroupedViolation{
-					Key:               key,
+					Key:                key,
 					EffectiveDirective: v.EffectiveDirective,
-					BlockedOrigin:     v.BlockedOrigin,
-					Pages:             map[string][]Violation{},
+					BlockedOrigin:      v.BlockedOrigin,
+					Pages:              map[string][]Violation{},
 				}
 				groups[key] = g
 			}
@@ -1161,13 +1173,13 @@ func isDisposition(actual, want string) bool {
 
 func defaultConfig() CSPConfig {
 	return CSPConfig{
-		WaitUntil:      "networkidle",
+		WaitUntil:      defaultWaitUntil,
 		NavTimeoutMs:   45000,
 		SettleWaitMs:   3000,
 		Concurrency:    1,
 		BetweenURLMs:   600,
-		UserAgent:      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-		AcceptLanguage: "en-US,en;q=0.9",
+		UserAgent:      defaultUserAgent,
+		AcceptLanguage: defaultAcceptLanguage,
 		Browser:        "chromium",
 	}
 }
@@ -1207,10 +1219,44 @@ func parseConfig(raw string) (CSPConfig, error) {
 	if cfg.AcceptLanguage == "" {
 		cfg.AcceptLanguage = defaultConfig().AcceptLanguage
 	}
+	cfg.BasicAuthUsername = strings.TrimSpace(cfg.BasicAuthUsername)
 	if cfg.Browser == "" {
 		cfg.Browser = defaultConfig().Browser
 	}
 	return cfg, nil
+}
+
+func configFromForm(r *http.Request) CSPConfig {
+	cfg := defaultConfig()
+	if v := strings.TrimSpace(r.FormValue("wait_until")); v != "" {
+		cfg.WaitUntil = v
+	}
+	if v := parseIntForm(r.FormValue("nav_timeout_ms")); v > 0 {
+		cfg.NavTimeoutMs = v
+	}
+	if v := parseIntForm(r.FormValue("settle_wait_ms")); v >= 0 {
+		cfg.SettleWaitMs = v
+	}
+	if v := parseIntForm(r.FormValue("concurrency")); v > 0 {
+		cfg.Concurrency = v
+	}
+	if v := parseIntForm(r.FormValue("between_url_ms")); v >= 0 {
+		cfg.BetweenURLMs = v
+	}
+	if v := strings.TrimSpace(r.FormValue("user_agent")); v != "" {
+		cfg.UserAgent = v
+	}
+	if v := strings.TrimSpace(r.FormValue("accept_language")); v != "" {
+		cfg.AcceptLanguage = v
+	}
+	cfg.BasicAuthUsername = strings.TrimSpace(r.FormValue("basic_auth_username"))
+	cfg.BasicAuthPassword = r.FormValue("basic_auth_password")
+	return cfg
+}
+
+func applyBasicAuthFromForm(r *http.Request, cfg *CSPConfig) {
+	cfg.BasicAuthUsername = strings.TrimSpace(r.FormValue("basic_auth_username"))
+	cfg.BasicAuthPassword = r.FormValue("basic_auth_password")
 }
 
 func envDefault(key, def string) string {
@@ -1219,6 +1265,13 @@ func envDefault(key, def string) string {
 		return def
 	}
 	return v
+}
+
+func boolEnv(v bool) string {
+	if v {
+		return "1"
+	}
+	return "0"
 }
 
 //go:embed web/templates/*.html web/static/*

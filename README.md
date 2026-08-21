@@ -204,6 +204,30 @@ https://breckhistoryarchives.org/favicon.ico
 - View results in Run History and click a run for details.
 - Grouped Issues summarize violations across pages; Page Status shows HTTP status and timings for every URL.
 - Each run checks Chromium, Firefox, and WebKit sequentially and shows three sections in the results.
+- Optional Basic Auth credentials can be entered on the New Run page or stored on a profile for protected URLs.
+
+## Profiles and Run Options
+
+Profiles control browser navigation timing, concurrency, and default headers. The **Default** profile uses `waitUntil=load`, which is a practical default for CSP checks.
+
+`waitUntil` controls when Playwright considers page navigation complete:
+
+- `load`: waits for the page load event after initial subresources have loaded or failed. This is the recommended default for CSP checks because it avoids many false timeouts from analytics, video embeds, polling, or CDN activity.
+- `domcontentloaded`: waits only until the HTML document has been parsed. This is faster, but can miss CSP violations triggered by late scripts, images, iframes, lazy-loaded content, or third-party widgets.
+- `networkidle`: waits until network activity becomes quiet. This can catch later activity, but is brittle on modern pages and may time out on embeds such as Vimeo, analytics, tag managers, chat widgets, or long-polling requests.
+
+Other useful profile settings:
+
+- `Navigation timeout (ms)`: maximum time allowed for each page navigation.
+- `Settle wait after load (ms)`: extra wait after navigation completes. `3000` to `5000` ms is useful for catching CSP violations from late JavaScript while still avoiding `networkidle` false timeouts.
+- `Concurrency`: number of URLs checked in parallel per browser. Keep this low for authenticated or resource-heavy sites.
+- `Delay between URLs (ms)`: pause between URL checks.
+- `User agent` and `Accept-Language`: headers used by the browser context.
+
+New Run options:
+
+- `Basic Auth username/password`: optional credentials for that run only. Leave blank to run without Basic Auth, even if the selected profile has credentials.
+- `Trace navigation`: adds the current page URL, last frame URL, last request URL, and last failed request to timeout errors. Enable this when diagnosing timeouts.
 
 ## Configuration
 

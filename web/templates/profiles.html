@@ -1,7 +1,7 @@
 {{template "header"}}
 <div class="card">
   <h2>Create Profile</h2>
-  <p class="meta">Profiles control timing, concurrency, and headers only. Every run always checks Chromium, Firefox, and WebKit, so no browser selection is needed.</p>
+  <p class="meta">Profiles control timing, concurrency, headers, and optional Basic Auth. Every run always checks Chromium, Firefox, and WebKit, so no browser selection is needed.</p>
   <form method="post" action="/profiles">
     <label for="name">Name</label>
     <input type="text" name="name" id="name" placeholder="Default" />
@@ -31,6 +31,13 @@
 
     <label for="accept_language">Accept-Language</label>
     <input type="text" name="accept_language" id="accept_language" value="{{.Defaults.AcceptLanguage}}" />
+
+    <label for="basic_auth_username">Basic Auth username</label>
+    <input type="text" name="basic_auth_username" id="basic_auth_username" value="{{.Defaults.BasicAuthUsername}}" autocomplete="off" />
+
+    <label for="basic_auth_password">Basic Auth password</label>
+    <input type="password" name="basic_auth_password" id="basic_auth_password" value="{{.Defaults.BasicAuthPassword}}" autocomplete="new-password" />
+    <div class="meta">Leave both Basic Auth fields empty for public URLs.</div>
 
     <button type="submit">Save Profile</button>
   </form>
@@ -81,6 +88,13 @@
       <label for="edit_accept_language">Accept-Language</label>
       <input type="text" name="accept_language" id="edit_accept_language" />
 
+      <label for="edit_basic_auth_username">Basic Auth username</label>
+      <input type="text" name="basic_auth_username" id="edit_basic_auth_username" autocomplete="off" />
+
+      <label for="edit_basic_auth_password">Basic Auth password</label>
+      <input type="password" name="basic_auth_password" id="edit_basic_auth_password" autocomplete="new-password" />
+      <div class="meta">Leave blank to keep the saved password. Clear the username to disable Basic Auth.</div>
+
       <button type="submit">Update Profile</button>
     </form>
   </div>
@@ -103,6 +117,8 @@
       var betweenEl = document.getElementById("edit_between_url_ms");
       var uaEl = document.getElementById("edit_user_agent");
       var langEl = document.getElementById("edit_accept_language");
+      var basicUserEl = document.getElementById("edit_basic_auth_username");
+      var basicPassEl = document.getElementById("edit_basic_auth_password");
 
       function applyProfile(p) {
         idEl.value = p.ID;
@@ -114,6 +130,8 @@
         betweenEl.value = (p.Config && (p.Config.betweenUrlMs || p.Config.BetweenURLMs)) || 600;
         uaEl.value = (p.Config && (p.Config.userAgent || p.Config.UserAgent)) || "";
         langEl.value = (p.Config && (p.Config.acceptLanguage || p.Config.AcceptLanguage)) || "";
+        basicUserEl.value = (p.Config && (p.Config.basicAuthUsername || p.Config.BasicAuthUsername)) || "";
+        basicPassEl.value = "";
       }
 
       function findProfile(id) {

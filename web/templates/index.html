@@ -14,6 +14,19 @@
     <textarea name="urls" id="urls" placeholder="https://example.org/\nhttps://example.org/about">{{.PrefillURLs}}</textarea>
     <div class="meta">Lines starting with # are ignored. Only full http/https URLs are accepted.</div>
 
+    <label for="basic_auth_username">Basic Auth username</label>
+    <input type="text" name="basic_auth_username" id="basic_auth_username" autocomplete="off" />
+
+    <label for="basic_auth_password">Basic Auth password</label>
+    <input type="password" name="basic_auth_password" id="basic_auth_password" autocomplete="new-password" />
+    <div class="meta">Optional for this run only. Leave blank to run without Basic Auth.</div>
+
+    <label class="check-row" for="trace">
+      <input type="checkbox" name="trace" id="trace" value="1" />
+      Trace navigation
+    </label>
+    <div class="meta">Adds the last frame/request details to timeout errors.</div>
+
     <button type="submit">Run Check</button>
     <div class="processing"><span class="spinner"></span>Running CSP check…</div>
   </form>

@@ -1,12 +1,16 @@
 package main
 
-import "testing"
+import (
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
 
 func TestNormalizeURL(t *testing.T) {
 	cases := []struct {
-		in   string
-		out  string
-		ok   bool
+		in  string
+		out string
+		ok  bool
 	}{
 		{"https://example.org", "https://example.org/", true},
 		{"https://example.org/", "https://example.org/", true},
@@ -69,5 +73,47 @@ func TestExtractDirective(t *testing.T) {
 	missing := extractDirective(policy, "script-src")
 	if missing != "" {
 		t.Fatalf("script-src directive=%q, want empty", missing)
+	}
+}
+
+func TestParseConfigBasicAuth(t *testing.T) {
+	cfg, err := parseConfig(`{"basicAuthUsername":"  user  ","basicAuthPassword":"secret"}`)
+	if err != nil {
+		t.Fatalf("parseConfig returned error: %v", err)
+	}
+	if cfg.BasicAuthUsername != "user" {
+		t.Fatalf("BasicAuthUsername=%q, want user", cfg.BasicAuthUsername)
+	}
+	if cfg.BasicAuthPassword != "secret" {
+		t.Fatalf("BasicAuthPassword=%q, want secret", cfg.BasicAuthPassword)
+	}
+	if cfg.UserAgent == "" || cfg.AcceptLanguage == "" {
+		t.Fatalf("defaults were not preserved")
+	}
+}
+
+func TestApplyBasicAuthFromFormOverridesProfileAuth(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.BasicAuthUsername = "profile-user"
+	cfg.BasicAuthPassword = "profile-pass"
+
+	r := httptest.NewRequest("POST", "/runs", strings.NewReader("basic_auth_username=&basic_auth_password="))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := r.ParseForm(); err != nil {
+		t.Fatalf("ParseForm returned error: %v", err)
+	}
+	applyBasicAuthFromForm(r, &cfg)
+	if cfg.BasicAuthUsername != "" || cfg.BasicAuthPassword != "" {
+		t.Fatalf("blank run auth should disable auth, got username=%q password=%q", cfg.BasicAuthUsername, cfg.BasicAuthPassword)
+	}
+
+	r = httptest.NewRequest("POST", "/runs", strings.NewReader("basic_auth_username=run-user&basic_auth_password=run-pass"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := r.ParseForm(); err != nil {
+		t.Fatalf("ParseForm returned error: %v", err)
+	}
+	applyBasicAuthFromForm(r, &cfg)
+	if cfg.BasicAuthUsername != "run-user" || cfg.BasicAuthPassword != "run-pass" {
+		t.Fatalf("run auth not applied, got username=%q password=%q", cfg.BasicAuthUsername, cfg.BasicAuthPassword)
 	}
 }
